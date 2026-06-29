@@ -14,5 +14,7 @@ public class StubScanServiceTests
         Assert.Equal("scan", result.Command);
         Assert.Equal("stub", result.Status);
         Assert.Equal("Scan pipeline is not implemented yet.", result.Message);
+        Assert.Equal("1.0", result.Snapshot.SchemaVersion);
+        Assert.Empty(result.Snapshot.StoredProcedures);
     }
 }
