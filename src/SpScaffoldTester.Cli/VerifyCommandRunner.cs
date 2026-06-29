@@ -1,10 +1,11 @@
+using System.Text.Json;
 using SpScaffoldTester.Core.Scanning;
 
 namespace SpScaffoldTester.Cli;
 
 public static class VerifyCommandRunner
 {
-    public static int Run(string[] args, TextWriter output, ISnapshotComparer? comparer = null)
+    public static int Run(string[] args, TextWriter output)
     {
         if (!TryParseArgs(args, out var baselinePath, out var currentPath))
         {
@@ -18,17 +19,36 @@ public static class VerifyCommandRunner
             return 4;
         }
 
-        var snapshotComparer = comparer ?? new SnapshotComparer();
-        var equivalent = snapshotComparer.AreEquivalent(baselinePath!, currentPath!);
-
-        if (equivalent)
+        try
         {
+            var baseline = LoadSnapshot(baselinePath!);
+            var current = LoadSnapshot(currentPath!);
+            var engine = new ContractDiffEngine();
+            var result = engine.Compare(baseline, current);
+
+            if (result.Severity == ContractDiffSeverity.Breaking)
+            {
+                output.WriteLine("Breaking contract changes detected.");
+                return 2;
+            }
+
             output.WriteLine("No breaking contract changes.");
             return 0;
         }
+        catch (JsonException)
+        {
+            output.WriteLine("Configuration error: invalid snapshot JSON format.");
+            return 4;
+        }
+    }
 
-        output.WriteLine("Breaking contract changes detected.");
-        return 2;
+    private static ScanSnapshot LoadSnapshot(string path)
+    {
+        var json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<ScanSnapshot>(json, new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        }) ?? new ScanSnapshot();
     }
 
     private static bool TryParseArgs(string[] args, out string? baselinePath, out string? currentPath)

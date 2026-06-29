@@ -140,4 +140,36 @@ public class ScanCommandRunnerTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void Program_WithVerifyAndOnlyOptionalParameterAdded_ShouldReturnZero()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"sp-verify-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var baselinePath = Path.Combine(tempDir, "baseline.json");
+        var currentPath = Path.Combine(tempDir, "current.json");
+
+        File.WriteAllText(
+            baselinePath,
+            "{\"schemaVersion\":\"1.0\",\"storedProcedures\":[{\"name\":\"usp_demo\",\"parameters\":[],\"resultColumns\":[]}]}"
+        );
+        File.WriteAllText(
+            currentPath,
+            "{\"schemaVersion\":\"1.0\",\"storedProcedures\":[{\"name\":\"usp_demo\",\"parameters\":[{\"name\":\"traceId\",\"dbType\":\"nvarchar\",\"isOptional\":true}],\"resultColumns\":[]}]}"
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = CliCommandRunner.Run(["verify", "--baseline", baselinePath, "--current", currentPath], output);
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains("No breaking contract changes", output.ToString());
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }
