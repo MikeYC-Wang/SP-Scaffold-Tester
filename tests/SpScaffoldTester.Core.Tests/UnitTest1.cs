@@ -1,10 +1,18 @@
-﻿namespace SpScaffoldTester.Core.Tests;
+﻿using SpScaffoldTester.Core.Scanning;
 
-public class UnitTest1
+namespace SpScaffoldTester.Core.Tests;
+
+public class StubScanServiceTests
 {
     [Fact]
-    public void Test1()
+    public void RunScan_ShouldReturnScanStubResult()
     {
+        var service = new StubScanService();
 
+        var result = service.RunScan();
+
+        Assert.Equal("scan", result.Command);
+        Assert.Equal("stub", result.Status);
+        Assert.Equal("Scan pipeline is not implemented yet.", result.Message);
     }
 }
