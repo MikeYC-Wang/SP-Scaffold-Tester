@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SpScaffoldTester.Cli/SpScaffoldTester.Cli.csproj" />
+    <Project Path="src/SpScaffoldTester.Core/SpScaffoldTester.Core.csproj" />
+    <Project Path="src/SpScaffoldTester.NuGet/SpScaffoldTester.NuGet.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SpScaffoldTester.Core.Tests/SpScaffoldTester.Core.Tests.csproj" />
+  </Folder>
+</Solution>
