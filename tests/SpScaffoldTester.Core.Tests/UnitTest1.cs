@@ -54,6 +54,12 @@ public class ContractDiffEngineTests
         Assert.Equal(ContractDiffSeverity.Breaking, result.Severity);
         Assert.Single(result.Reasons);
         Assert.Contains("Parameter removed", result.Reasons[0]);
+        Assert.Single(result.Items);
+        Assert.Equal("ParameterRemoved", result.Items[0].Type);
+        Assert.Equal("usp_demo", result.Items[0].StoredProcedure);
+        Assert.Equal("id", result.Items[0].MemberName);
+        Assert.Equal("int", result.Items[0].BaselineType);
+        Assert.Null(result.Items[0].CurrentType);
     }
 
     [Fact]
@@ -88,5 +94,6 @@ public class ContractDiffEngineTests
 
         Assert.Equal(ContractDiffSeverity.None, result.Severity);
         Assert.Empty(result.Reasons);
+        Assert.Empty(result.Items);
     }
 }
