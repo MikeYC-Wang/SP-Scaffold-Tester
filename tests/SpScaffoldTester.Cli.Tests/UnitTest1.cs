@@ -172,4 +172,43 @@ public class ScanCommandRunnerTests
             Directory.Delete(tempDir, true);
         }
     }
+
+    [Fact]
+    public void Program_WithVerifyAndReportPath_ShouldWriteJsonReport()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"sp-verify-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var baselinePath = Path.Combine(tempDir, "baseline.json");
+        var currentPath = Path.Combine(tempDir, "current.json");
+        var reportPath = Path.Combine(tempDir, "report.json");
+
+        File.WriteAllText(
+            baselinePath,
+            "{\"schemaVersion\":\"1.0\",\"storedProcedures\":[{\"name\":\"usp_demo\",\"parameters\":[{\"name\":\"id\",\"dbType\":\"int\",\"isOptional\":false}],\"resultColumns\":[]}]}"
+        );
+        File.WriteAllText(
+            currentPath,
+            "{\"schemaVersion\":\"1.0\",\"storedProcedures\":[{\"name\":\"usp_demo\",\"parameters\":[],\"resultColumns\":[]}]}"
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = CliCommandRunner.Run(["verify", "--baseline", baselinePath, "--current", currentPath, "--report", reportPath], output);
+
+            Assert.Equal(2, exitCode);
+            Assert.True(File.Exists(reportPath));
+
+            var reportJson = File.ReadAllText(reportPath);
+            Assert.Contains("\"severity\":\"Breaking\"", reportJson);
+            Assert.Contains("\"reasons\":[", reportJson);
+            Assert.Contains("Parameter removed", reportJson);
+            Assert.Contains("Verify report written to", output.ToString());
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }

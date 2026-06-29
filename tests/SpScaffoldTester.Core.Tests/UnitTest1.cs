@@ -52,6 +52,8 @@ public class ContractDiffEngineTests
         var result = engine.Compare(baseline, current);
 
         Assert.Equal(ContractDiffSeverity.Breaking, result.Severity);
+        Assert.Single(result.Reasons);
+        Assert.Contains("Parameter removed", result.Reasons[0]);
     }
 
     [Fact]
@@ -85,5 +87,6 @@ public class ContractDiffEngineTests
         var result = engine.Compare(baseline, current);
 
         Assert.Equal(ContractDiffSeverity.None, result.Severity);
+        Assert.Empty(result.Reasons);
     }
 }

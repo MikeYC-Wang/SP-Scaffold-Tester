@@ -6,73 +6,76 @@ public sealed class ContractDiffEngine
     {
         var baselineByName = baseline.StoredProcedures.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
         var currentByName = current.StoredProcedures.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
+        var reasons = new List<string>();
 
         foreach (var (spName, baselineSp) in baselineByName)
         {
             if (!currentByName.TryGetValue(spName, out var currentSp))
             {
-                return new ContractDiffResult { Severity = ContractDiffSeverity.Breaking };
+                reasons.Add($"Stored procedure removed: {spName}");
+                continue;
             }
 
-            if (HasBreakingParameterDiff(baselineSp, currentSp))
-            {
-                return new ContractDiffResult { Severity = ContractDiffSeverity.Breaking };
-            }
-
-            if (HasBreakingResultColumnDiff(baselineSp, currentSp))
-            {
-                return new ContractDiffResult { Severity = ContractDiffSeverity.Breaking };
-            }
+            reasons.AddRange(GetBreakingParameterDiffReasons(baselineSp, currentSp));
+            reasons.AddRange(GetBreakingResultColumnDiffReasons(baselineSp, currentSp));
         }
 
         foreach (var spName in currentByName.Keys)
         {
             if (!baselineByName.ContainsKey(spName))
             {
-                return new ContractDiffResult { Severity = ContractDiffSeverity.Breaking };
+                reasons.Add($"Stored procedure added: {spName}");
             }
         }
 
-        return new ContractDiffResult { Severity = ContractDiffSeverity.None };
+        return new ContractDiffResult
+        {
+            Severity = reasons.Count > 0 ? ContractDiffSeverity.Breaking : ContractDiffSeverity.None,
+            Reasons = reasons
+        };
     }
 
-    private static bool HasBreakingParameterDiff(StoredProcedureContract baselineSp, StoredProcedureContract currentSp)
+    private static IReadOnlyList<string> GetBreakingParameterDiffReasons(StoredProcedureContract baselineSp, StoredProcedureContract currentSp)
     {
+        var reasons = new List<string>();
         var currentParameters = currentSp.Parameters.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
 
         foreach (var baselineParameter in baselineSp.Parameters)
         {
             if (!currentParameters.TryGetValue(baselineParameter.Name, out var currentParameter))
             {
-                return true;
+                reasons.Add($"Parameter removed: {baselineSp.Name}.{baselineParameter.Name}");
+                continue;
             }
 
             if (!string.Equals(baselineParameter.DbType, currentParameter.DbType, StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                reasons.Add($"Parameter type changed: {baselineSp.Name}.{baselineParameter.Name} ({baselineParameter.DbType} -> {currentParameter.DbType})");
             }
         }
 
-        return false;
+        return reasons;
     }
 
-    private static bool HasBreakingResultColumnDiff(StoredProcedureContract baselineSp, StoredProcedureContract currentSp)
+    private static IReadOnlyList<string> GetBreakingResultColumnDiffReasons(StoredProcedureContract baselineSp, StoredProcedureContract currentSp)
     {
+        var reasons = new List<string>();
         var currentColumns = currentSp.ResultColumns.ToDictionary(x => x.Name, StringComparer.OrdinalIgnoreCase);
 
         foreach (var baselineColumn in baselineSp.ResultColumns)
         {
             if (!currentColumns.TryGetValue(baselineColumn.Name, out var currentColumn))
             {
-                return true;
+                reasons.Add($"Result column removed: {baselineSp.Name}.{baselineColumn.Name}");
+                continue;
             }
 
             if (!string.Equals(baselineColumn.DbType, currentColumn.DbType, StringComparison.OrdinalIgnoreCase))
             {
-                return true;
+                reasons.Add($"Result column type changed: {baselineSp.Name}.{baselineColumn.Name} ({baselineColumn.DbType} -> {currentColumn.DbType})");
             }
         }
 
-        return false;
+        return reasons;
     }
 }
