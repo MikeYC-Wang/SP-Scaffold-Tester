@@ -55,7 +55,7 @@ public class ContractDiffEngineTests
         Assert.Single(result.Reasons);
         Assert.Contains("Parameter removed", result.Reasons[0]);
         Assert.Single(result.Items);
-        Assert.Equal("ParameterRemoved", result.Items[0].Type);
+        Assert.Equal(ContractDiffCode.ParameterRemoved, result.Items[0].Code);
         Assert.Equal("usp_demo", result.Items[0].StoredProcedure);
         Assert.Equal("id", result.Items[0].MemberName);
         Assert.Equal("int", result.Items[0].BaselineType);

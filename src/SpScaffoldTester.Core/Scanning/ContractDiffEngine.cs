@@ -14,7 +14,7 @@ public sealed class ContractDiffEngine
             {
                 items.Add(new ContractDiffItem
                 {
-                    Type = "StoredProcedureRemoved",
+                    Code = ContractDiffCode.StoredProcedureRemoved,
                     StoredProcedure = spName,
                     Message = $"Stored procedure removed: {spName}"
                 });
@@ -31,7 +31,7 @@ public sealed class ContractDiffEngine
             {
                 items.Add(new ContractDiffItem
                 {
-                    Type = "StoredProcedureAdded",
+                    Code = ContractDiffCode.StoredProcedureAdded,
                     StoredProcedure = spName,
                     Message = $"Stored procedure added: {spName}"
                 });
@@ -57,7 +57,7 @@ public sealed class ContractDiffEngine
             {
                 items.Add(new ContractDiffItem
                 {
-                    Type = "ParameterRemoved",
+                    Code = ContractDiffCode.ParameterRemoved,
                     StoredProcedure = baselineSp.Name,
                     MemberName = baselineParameter.Name,
                     BaselineType = baselineParameter.DbType,
@@ -70,7 +70,7 @@ public sealed class ContractDiffEngine
             {
                 items.Add(new ContractDiffItem
                 {
-                    Type = "ParameterTypeChanged",
+                    Code = ContractDiffCode.ParameterTypeChanged,
                     StoredProcedure = baselineSp.Name,
                     MemberName = baselineParameter.Name,
                     BaselineType = baselineParameter.DbType,
@@ -94,7 +94,7 @@ public sealed class ContractDiffEngine
             {
                 items.Add(new ContractDiffItem
                 {
-                    Type = "ResultColumnRemoved",
+                    Code = ContractDiffCode.ResultColumnRemoved,
                     StoredProcedure = baselineSp.Name,
                     MemberName = baselineColumn.Name,
                     BaselineType = baselineColumn.DbType,
@@ -107,7 +107,7 @@ public sealed class ContractDiffEngine
             {
                 items.Add(new ContractDiffItem
                 {
-                    Type = "ResultColumnTypeChanged",
+                    Code = ContractDiffCode.ResultColumnTypeChanged,
                     StoredProcedure = baselineSp.Name,
                     MemberName = baselineColumn.Name,
                     BaselineType = baselineColumn.DbType,
