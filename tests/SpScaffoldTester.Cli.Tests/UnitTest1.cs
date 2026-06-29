@@ -203,6 +203,10 @@ public class ScanCommandRunnerTests
             var reportJson = File.ReadAllText(reportPath);
             Assert.Contains("\"severity\":\"Breaking\"", reportJson);
             Assert.Contains("\"reasons\":[", reportJson);
+            Assert.Contains("\"items\":[", reportJson);
+            Assert.Contains("\"type\":\"ParameterRemoved\"", reportJson);
+            Assert.Contains("\"storedProcedure\":\"usp_demo\"", reportJson);
+            Assert.Contains("\"memberName\":\"id\"", reportJson);
             Assert.Contains("Parameter removed", reportJson);
             Assert.Contains("Verify report written to", output.ToString());
         }
