@@ -8,9 +8,9 @@ public static class VerifyCommandRunner
 {
     public static int Run(string[] args, TextWriter output)
     {
-        if (!TryParseArgs(args, out var baselinePath, out var currentPath, out var reportPath))
+        if (!TryParseArgs(args, out var baselinePath, out var currentPath, out var reportPath, out var strictMode))
         {
-            output.WriteLine("Usage: sp-scaffold-tester verify --baseline <path> --current <path> [--report <path>]");
+            output.WriteLine("Usage: sp-scaffold-tester verify --baseline <path> --current <path> [--report <path>] [--strict]");
             return 4;
         }
 
@@ -37,6 +37,30 @@ public static class VerifyCommandRunner
             {
                 output.WriteLine("Breaking contract changes detected.");
                 return 2;
+            }
+
+            if (result.Severity == ContractDiffSeverity.Unknown)
+            {
+                output.WriteLine("Contract analysis contains unknown changes.");
+                if (strictMode)
+                {
+                    output.WriteLine("Strict mode escalated unknown changes.");
+                    return 2;
+                }
+
+                return 0;
+            }
+
+            if (result.Severity == ContractDiffSeverity.Warning)
+            {
+                output.WriteLine("Contract warnings detected.");
+                if (strictMode)
+                {
+                    output.WriteLine("Strict mode escalated warnings.");
+                    return 2;
+                }
+
+                return 0;
             }
 
             output.WriteLine("No breaking contract changes.");
@@ -75,30 +99,42 @@ public static class VerifyCommandRunner
         File.WriteAllText(reportPath, json);
     }
 
-    private static bool TryParseArgs(string[] args, out string? baselinePath, out string? currentPath, out string? reportPath)
+    private static bool TryParseArgs(string[] args, out string? baselinePath, out string? currentPath, out string? reportPath, out bool strictMode)
     {
         baselinePath = null;
         currentPath = null;
         reportPath = null;
+        strictMode = false;
 
-        if ((args.Length != 5 && args.Length != 7) || !args[0].Equals("verify", StringComparison.OrdinalIgnoreCase))
+        if (args.Length < 5 || args.Length > 8 || !args[0].Equals("verify", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        for (var i = 1; i < args.Length - 1; i += 2)
+        for (var i = 1; i < args.Length; i++)
         {
+            if (args[i].Equals("--strict", StringComparison.OrdinalIgnoreCase))
+            {
+                strictMode = true;
+                continue;
+            }
+
+            if (i == args.Length - 1)
+            {
+                return false;
+            }
+
             if (args[i].Equals("--baseline", StringComparison.OrdinalIgnoreCase))
             {
-                baselinePath = args[i + 1];
+                baselinePath = args[++i];
             }
             else if (args[i].Equals("--current", StringComparison.OrdinalIgnoreCase))
             {
-                currentPath = args[i + 1];
+                currentPath = args[++i];
             }
             else if (args[i].Equals("--report", StringComparison.OrdinalIgnoreCase))
             {
-                reportPath = args[i + 1];
+                reportPath = args[++i];
             }
             else
             {

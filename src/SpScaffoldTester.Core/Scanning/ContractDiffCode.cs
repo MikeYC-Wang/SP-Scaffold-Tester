@@ -7,5 +7,8 @@ public enum ContractDiffCode
     ParameterRemoved = 2,
     ParameterTypeChanged = 3,
     ResultColumnRemoved = 4,
-    ResultColumnTypeChanged = 5
+    ResultColumnTypeChanged = 5,
+    OptionalParameterAdded = 6,
+    NullableResultColumnAdded = 7,
+    MetadataAmbiguous = 8
 }
