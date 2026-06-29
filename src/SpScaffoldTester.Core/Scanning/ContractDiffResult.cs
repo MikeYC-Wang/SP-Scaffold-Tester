@@ -10,5 +10,7 @@ public sealed class ContractDiffResult
 public enum ContractDiffSeverity
 {
     None = 0,
-    Breaking = 1
+    Warning = 1,
+    Unknown = 2,
+    Breaking = 3
 }

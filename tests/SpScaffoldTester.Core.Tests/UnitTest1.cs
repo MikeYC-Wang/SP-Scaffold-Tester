@@ -92,8 +92,46 @@ public class ContractDiffEngineTests
 
         var result = engine.Compare(baseline, current);
 
-        Assert.Equal(ContractDiffSeverity.None, result.Severity);
-        Assert.Empty(result.Reasons);
-        Assert.Empty(result.Items);
+        Assert.Equal(ContractDiffSeverity.Warning, result.Severity);
+        Assert.Single(result.Reasons);
+        Assert.Single(result.Items);
+        Assert.Equal(ContractDiffCode.OptionalParameterAdded, result.Items[0].Code);
+    }
+
+    [Fact]
+    public void Compare_WhenMetadataIsAmbiguous_ShouldBeUnknown()
+    {
+        var engine = new ContractDiffEngine();
+        var baseline = new ScanSnapshot
+        {
+            StoredProcedures =
+            [
+                new StoredProcedureContract
+                {
+                    Name = "usp_demo",
+                    Parameters = [],
+                    IsMetadataAmbiguous = true
+                }
+            ]
+        };
+
+        var current = new ScanSnapshot
+        {
+            StoredProcedures =
+            [
+                new StoredProcedureContract
+                {
+                    Name = "usp_demo",
+                    Parameters = [],
+                    IsMetadataAmbiguous = true
+                }
+            ]
+        };
+
+        var result = engine.Compare(baseline, current);
+
+        Assert.Equal(ContractDiffSeverity.Unknown, result.Severity);
+        Assert.Single(result.Items);
+        Assert.Equal(ContractDiffCode.MetadataAmbiguous, result.Items[0].Code);
     }
 }
