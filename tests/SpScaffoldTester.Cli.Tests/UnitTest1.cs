@@ -204,7 +204,7 @@ public class ScanCommandRunnerTests
             Assert.Contains("\"severity\":\"Breaking\"", reportJson);
             Assert.Contains("\"reasons\":[", reportJson);
             Assert.Contains("\"items\":[", reportJson);
-            Assert.Contains("\"type\":\"ParameterRemoved\"", reportJson);
+            Assert.Contains("\"code\":\"ParameterRemoved\"", reportJson);
             Assert.Contains("\"storedProcedure\":\"usp_demo\"", reportJson);
             Assert.Contains("\"memberName\":\"id\"", reportJson);
             Assert.Contains("Parameter removed", reportJson);
