@@ -5,6 +5,7 @@
     <Project Path="src/SpScaffoldTester.NuGet/SpScaffoldTester.NuGet.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SpScaffoldTester.Cli.Tests/SpScaffoldTester.Cli.Tests.csproj" />
     <Project Path="tests/SpScaffoldTester.Core.Tests/SpScaffoldTester.Core.Tests.csproj" />
   </Folder>
 </Solution>
