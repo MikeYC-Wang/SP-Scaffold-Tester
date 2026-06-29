@@ -65,4 +65,79 @@ public class ScanCommandRunnerTests
         Assert.Equal(1, exitCode);
         Assert.Contains("Usage: sp-scaffold-tester scan", output.ToString());
     }
+
+    [Fact]
+    public void Program_WithVerifyAndMatchingFiles_ShouldReturnZero()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"sp-verify-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var baselinePath = Path.Combine(tempDir, "baseline.json");
+        var currentPath = Path.Combine(tempDir, "current.json");
+        var snapshotJson = "{\"schemaVersion\":\"1.0\",\"storedProcedures\":[]}";
+        File.WriteAllText(baselinePath, snapshotJson);
+        File.WriteAllText(currentPath, snapshotJson);
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = CliCommandRunner.Run(["verify", "--baseline", baselinePath, "--current", currentPath], output);
+
+            Assert.Equal(0, exitCode);
+            Assert.Contains("No breaking contract changes", output.ToString());
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Program_WithVerifyAndDifferentFiles_ShouldReturnTwo()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"sp-verify-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var baselinePath = Path.Combine(tempDir, "baseline.json");
+        var currentPath = Path.Combine(tempDir, "current.json");
+        File.WriteAllText(baselinePath, "{\"schemaVersion\":\"1.0\",\"storedProcedures\":[]}");
+        File.WriteAllText(currentPath, "{\"schemaVersion\":\"1.0\",\"storedProcedures\":[{\"name\":\"usp_demo\"}]}");
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = CliCommandRunner.Run(["verify", "--baseline", baselinePath, "--current", currentPath], output);
+
+            Assert.Equal(2, exitCode);
+            Assert.Contains("Breaking contract changes detected", output.ToString());
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
+
+    [Fact]
+    public void Program_WithVerifyAndMissingFile_ShouldReturnFour()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"sp-verify-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+        var baselinePath = Path.Combine(tempDir, "baseline.json");
+        var currentPath = Path.Combine(tempDir, "current.json");
+        File.WriteAllText(currentPath, "{\"schemaVersion\":\"1.0\",\"storedProcedures\":[]}");
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = CliCommandRunner.Run(["verify", "--baseline", baselinePath, "--current", currentPath], output);
+
+            Assert.Equal(4, exitCode);
+            Assert.Contains("Configuration error", output.ToString());
+        }
+        finally
+        {
+            Directory.Delete(tempDir, true);
+        }
+    }
 }
