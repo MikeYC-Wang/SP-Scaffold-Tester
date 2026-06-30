@@ -5,12 +5,22 @@ namespace SpScaffoldTester.Core.Scanning;
 public sealed class SqlFileScanService : IScanService
 {
     private static readonly Regex ProcedureRegex = new(
-        @"CREATE\s+(?:OR\s+ALTER\s+)?PROCEDURE\s+(?<name>(?:\[[^\]]+\]|[A-Za-z_][\w]*)(?:\s*\.\s*(?:\[[^\]]+\]|[A-Za-z_][\w]*))?)\s*(?<params>[\s\S]*?)\bAS\b",
-        RegexOptions.IgnoreCase | RegexOptions.Compiled
+        @"CREATE\s+(?:OR\s+ALTER\s+)?PROCEDURE\s+(?<name>(?:\[[^\]]+\]|[A-Za-z_][\w]*)(?:\s*\.\s*(?:\[[^\]]+\]|[A-Za-z_][\w]*))?)\s*(?<params>[\s\S]*?)\bAS\b(?<body>[\s\S]*?)(?=^\s*CREATE\s+(?:OR\s+ALTER\s+)?PROCEDURE\b|\z)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline
     );
 
     private static readonly Regex ParameterRegex = new(
         @"@(?<name>[A-Za-z_][\w]*)\s+(?<type>[A-Za-z_][\w]*)(?:\s*\([^\)]*\))?(?<tail>[\s\S]*)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    private static readonly Regex SelectRegex = new(
+        @"SELECT\s+(?<columns>[\s\S]*?)(?:\bFROM\b|;)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    private static readonly Regex CastColumnRegex = new(
+        @"CAST\s*\(\s*(?<expr>NULL|[^\)]*?)\s+AS\s+(?<type>[A-Za-z_][\w]*)(?:\s*\([^\)]*\))?\s*\)\s+AS\s+(?<alias>[A-Za-z_][\w]*)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
@@ -45,12 +55,13 @@ public sealed class SqlFileScanService : IScanService
         {
             var name = NormalizeProcedureName(match.Groups["name"].Value);
             var parameters = ParseParameters(match.Groups["params"].Value);
+            var resultColumns = ParseResultColumns(match.Groups["body"].Value);
 
             procedures.Add(new StoredProcedureContract
             {
                 Name = name,
                 Parameters = parameters,
-                ResultColumns = []
+                ResultColumns = resultColumns
             });
         }
 
@@ -80,6 +91,30 @@ public sealed class SqlFileScanService : IScanService
         }
 
         return parameters;
+    }
+
+    private static IReadOnlyList<ResultColumnContract> ParseResultColumns(string procedureBody)
+    {
+        var selectMatch = SelectRegex.Match(procedureBody);
+        if (!selectMatch.Success)
+        {
+            return [];
+        }
+
+        var columnsText = selectMatch.Groups["columns"].Value;
+        var resultColumns = new List<ResultColumnContract>();
+        foreach (Match columnMatch in CastColumnRegex.Matches(columnsText))
+        {
+            var expression = columnMatch.Groups["expr"].Value.Trim();
+            resultColumns.Add(new ResultColumnContract
+            {
+                Name = columnMatch.Groups["alias"].Value,
+                DbType = columnMatch.Groups["type"].Value.ToLowerInvariant(),
+                IsNullable = expression.Equals("NULL", StringComparison.OrdinalIgnoreCase)
+            });
+        }
+
+        return resultColumns;
     }
 
     private static string NormalizeProcedureName(string rawName)

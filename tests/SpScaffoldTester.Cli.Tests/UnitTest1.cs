@@ -118,6 +118,55 @@ public class ScanCommandRunnerTests
     }
 
     [Fact]
+    public void Run_WithScanAndSqlPath_ShouldIncludeResultColumnsInSnapshot()
+    {
+        var tempSqlFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        var tempSnapshotFile = Path.Combine(Path.GetTempPath(), $"sp-scan-snapshot-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            tempSqlFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+                @id INT
+            AS
+            BEGIN
+                SELECT
+                    CAST(1 AS INT) AS userId,
+                    CAST(NULL AS NVARCHAR(100)) AS nickName;
+            END
+            """
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = ScanCommandRunner.Run(["scan", "--sql", tempSqlFile, "--out", tempSnapshotFile], output);
+
+            Assert.Equal(0, exitCode);
+
+            var snapshotText = File.ReadAllText(tempSnapshotFile);
+            Assert.Contains("\"resultColumns\":[", snapshotText);
+            Assert.Contains("\"name\":\"userId\"", snapshotText);
+            Assert.Contains("\"dbType\":\"int\"", snapshotText);
+            Assert.Contains("\"name\":\"nickName\"", snapshotText);
+            Assert.Contains("\"dbType\":\"nvarchar\"", snapshotText);
+        }
+        finally
+        {
+            if (File.Exists(tempSqlFile))
+            {
+                File.Delete(tempSqlFile);
+            }
+
+            if (File.Exists(tempSnapshotFile))
+            {
+                File.Delete(tempSnapshotFile);
+            }
+        }
+    }
+
+    [Fact]
     public void Run_WithScanAndMissingSqlPath_ShouldReturnFour()
     {
         using var output = new StringWriter();
