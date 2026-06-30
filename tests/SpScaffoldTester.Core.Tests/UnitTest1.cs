@@ -111,6 +111,42 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithUnsupportedSelectProjection_ShouldMarkMetadataAmbiguous()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+                @id INT
+            AS
+            BEGIN
+                SELECT u.Id AS userId
+                FROM dbo.Users u;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.True(sp.IsMetadataAmbiguous);
+            Assert.Empty(sp.ResultColumns);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests

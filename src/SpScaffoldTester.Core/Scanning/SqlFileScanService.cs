@@ -55,11 +55,12 @@ public sealed class SqlFileScanService : IScanService
         {
             var name = NormalizeProcedureName(match.Groups["name"].Value);
             var parameters = ParseParameters(match.Groups["params"].Value);
-            var resultColumns = ParseResultColumns(match.Groups["body"].Value);
+            var (resultColumns, isMetadataAmbiguous) = ParseResultColumns(match.Groups["body"].Value);
 
             procedures.Add(new StoredProcedureContract
             {
                 Name = name,
+                IsMetadataAmbiguous = isMetadataAmbiguous,
                 Parameters = parameters,
                 ResultColumns = resultColumns
             });
@@ -93,17 +94,23 @@ public sealed class SqlFileScanService : IScanService
         return parameters;
     }
 
-    private static IReadOnlyList<ResultColumnContract> ParseResultColumns(string procedureBody)
+    private static (IReadOnlyList<ResultColumnContract> Columns, bool IsMetadataAmbiguous) ParseResultColumns(string procedureBody)
     {
+        if (procedureBody.Contains("sp_executesql", StringComparison.OrdinalIgnoreCase))
+        {
+            return ([], true);
+        }
+
         var selectMatch = SelectRegex.Match(procedureBody);
         if (!selectMatch.Success)
         {
-            return [];
+            return ([], false);
         }
 
         var columnsText = selectMatch.Groups["columns"].Value;
         var resultColumns = new List<ResultColumnContract>();
-        foreach (Match columnMatch in CastColumnRegex.Matches(columnsText))
+        var matches = CastColumnRegex.Matches(columnsText);
+        foreach (Match columnMatch in matches)
         {
             var expression = columnMatch.Groups["expr"].Value.Trim();
             resultColumns.Add(new ResultColumnContract
@@ -114,7 +121,31 @@ public sealed class SqlFileScanService : IScanService
             });
         }
 
-        return resultColumns;
+        var isMetadataAmbiguous = resultColumns.Count == 0;
+        if (!isMetadataAmbiguous)
+        {
+            var remaining = columnsText;
+            foreach (Match match in matches)
+            {
+                if (match.Success)
+                {
+                    remaining = remaining.Replace(match.Value, string.Empty, StringComparison.OrdinalIgnoreCase);
+                }
+            }
+
+            var residue = remaining.Replace(",", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Replace("\r", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Replace("\n", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Replace("\t", string.Empty, StringComparison.OrdinalIgnoreCase)
+                .Trim();
+
+            if (!string.IsNullOrWhiteSpace(residue))
+            {
+                isMetadataAmbiguous = true;
+            }
+        }
+
+        return (resultColumns, isMetadataAmbiguous);
     }
 
     private static string NormalizeProcedureName(string rawName)
