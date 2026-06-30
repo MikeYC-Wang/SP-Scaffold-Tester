@@ -211,6 +211,59 @@ public class ScanCommandRunnerTests
     }
 
     [Fact]
+    public void Run_WithMultipleProcedures_ShouldWriteSnapshotInDeterministicOrder()
+    {
+        var tempSqlFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        var tempSnapshotFile = Path.Combine(Path.GetTempPath(), $"sp-scan-snapshot-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            tempSqlFile,
+            """
+            CREATE PROCEDURE dbo.usp_Zeta
+            AS
+            BEGIN
+                SELECT 1;
+            END
+
+            CREATE PROCEDURE dbo.usp_Alpha
+            AS
+            BEGIN
+                SELECT 1;
+            END
+            """
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = ScanCommandRunner.Run(["scan", "--sql", tempSqlFile, "--out", tempSnapshotFile], output);
+
+            Assert.Equal(0, exitCode);
+            var snapshotText = File.ReadAllText(tempSnapshotFile);
+
+            var alphaIndex = snapshotText.IndexOf("dbo.usp_Alpha", StringComparison.Ordinal);
+            var zetaIndex = snapshotText.IndexOf("dbo.usp_Zeta", StringComparison.Ordinal);
+
+            Assert.True(alphaIndex >= 0);
+            Assert.True(zetaIndex >= 0);
+            Assert.True(alphaIndex < zetaIndex);
+        }
+        finally
+        {
+            if (File.Exists(tempSqlFile))
+            {
+                File.Delete(tempSqlFile);
+            }
+
+            if (File.Exists(tempSnapshotFile))
+            {
+                File.Delete(tempSnapshotFile);
+            }
+        }
+    }
+
+    [Fact]
     public void Run_WithScanAndMissingSqlPath_ShouldReturnFour()
     {
         using var output = new StringWriter();

@@ -66,7 +66,9 @@ public sealed class SqlFileScanService : IScanService
             });
         }
 
-        return procedures;
+        return procedures
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static IReadOnlyList<ParameterContract> ParseParameters(string parameterBlock)

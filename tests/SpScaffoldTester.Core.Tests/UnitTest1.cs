@@ -147,6 +147,46 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithMultipleProcedures_ShouldReturnDeterministicOrderByName()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_Zeta
+            AS
+            BEGIN
+                SELECT 1;
+            END
+
+            CREATE PROCEDURE dbo.usp_Alpha
+            AS
+            BEGIN
+                SELECT 1;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            Assert.Equal(2, result.Snapshot.StoredProcedures.Count);
+            Assert.Equal("dbo.usp_Alpha", result.Snapshot.StoredProcedures[0].Name);
+            Assert.Equal("dbo.usp_Zeta", result.Snapshot.StoredProcedures[1].Name);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests
