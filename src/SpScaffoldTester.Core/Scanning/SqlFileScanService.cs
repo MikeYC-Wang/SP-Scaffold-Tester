@@ -24,6 +24,16 @@ public sealed class SqlFileScanService : IScanService
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
+    private static readonly Regex BlockCommentRegex = new(
+        @"/\*[\s\S]*?\*/",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex LineCommentRegex = new(
+        @"--.*$",
+        RegexOptions.Compiled | RegexOptions.Multiline
+    );
+
     private readonly string _sqlFilePath;
 
     public SqlFileScanService(string sqlFilePath)
@@ -100,12 +110,14 @@ public sealed class SqlFileScanService : IScanService
 
     private static (IReadOnlyList<ResultColumnContract> Columns, bool IsMetadataAmbiguous) ParseResultColumns(string procedureBody)
     {
-        if (procedureBody.Contains("sp_executesql", StringComparison.OrdinalIgnoreCase))
+        var cleanedBody = RemoveSqlComments(procedureBody);
+
+        if (cleanedBody.Contains("sp_executesql", StringComparison.OrdinalIgnoreCase))
         {
             return ([], true);
         }
 
-        var selectMatch = SelectRegex.Match(procedureBody);
+        var selectMatch = SelectRegex.Match(cleanedBody);
         if (!selectMatch.Success)
         {
             return ([], false);
@@ -154,6 +166,12 @@ public sealed class SqlFileScanService : IScanService
             .ToArray();
 
         return (orderedColumns, isMetadataAmbiguous);
+    }
+
+    private static string RemoveSqlComments(string sql)
+    {
+        var noBlockComments = BlockCommentRegex.Replace(sql, string.Empty);
+        return LineCommentRegex.Replace(noBlockComments, string.Empty);
     }
 
     private static string NormalizeProcedureName(string rawName)
