@@ -67,6 +67,69 @@ public class ScanCommandRunnerTests
     }
 
     [Fact]
+    public void Run_WithScanAndSqlPath_ShouldParseAndWriteSnapshotFile()
+    {
+        var tempSqlFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        var tempSnapshotFile = Path.Combine(Path.GetTempPath(), $"sp-scan-snapshot-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            tempSqlFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+                @id INT,
+                @traceId NVARCHAR(36) = NULL
+            AS
+            BEGIN
+                SELECT 1;
+            END
+            """
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = ScanCommandRunner.Run(["scan", "--sql", tempSqlFile, "--out", tempSnapshotFile], output);
+
+            Assert.Equal(0, exitCode);
+            Assert.True(File.Exists(tempSnapshotFile));
+
+            var snapshotText = File.ReadAllText(tempSnapshotFile);
+            Assert.Contains("\"name\":\"dbo.usp_GetUser\"", snapshotText);
+            Assert.Contains("\"name\":\"id\"", snapshotText);
+            Assert.Contains("\"name\":\"traceId\"", snapshotText);
+
+            var outputText = output.ToString();
+            Assert.Contains("\"status\":\"scanned\"", outputText);
+            Assert.Contains("Snapshot written to", outputText);
+        }
+        finally
+        {
+            if (File.Exists(tempSqlFile))
+            {
+                File.Delete(tempSqlFile);
+            }
+
+            if (File.Exists(tempSnapshotFile))
+            {
+                File.Delete(tempSnapshotFile);
+            }
+        }
+    }
+
+    [Fact]
+    public void Run_WithScanAndMissingSqlPath_ShouldReturnFour()
+    {
+        using var output = new StringWriter();
+
+        var missingPath = Path.Combine(Path.GetTempPath(), $"missing-sql-{Guid.NewGuid():N}.sql");
+        var exitCode = ScanCommandRunner.Run(["scan", "--sql", missingPath], output);
+
+        Assert.Equal(4, exitCode);
+        Assert.Contains("Configuration error", output.ToString());
+    }
+
+    [Fact]
     public void Program_WithVerifyAndMatchingFiles_ShouldReturnZero()
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"sp-verify-{Guid.NewGuid():N}");

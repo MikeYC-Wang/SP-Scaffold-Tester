@@ -19,6 +19,56 @@ public class StubScanServiceTests
     }
 }
 
+public class SqlFileScanServiceTests
+{
+    [Fact]
+    public void RunScan_WithSqlFile_ShouldParseProcedureAndParameters()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+                @id INT,
+                @traceId NVARCHAR(36) = NULL
+            AS
+            BEGIN
+                SELECT 1;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            Assert.Equal("scanned", result.Status);
+            Assert.Single(result.Snapshot.StoredProcedures);
+
+            var sp = result.Snapshot.StoredProcedures[0];
+            Assert.Equal("dbo.usp_GetUser", sp.Name);
+            Assert.Equal(2, sp.Parameters.Count);
+
+            Assert.Equal("id", sp.Parameters[0].Name);
+            Assert.Equal("int", sp.Parameters[0].DbType);
+            Assert.False(sp.Parameters[0].IsOptional);
+
+            Assert.Equal("traceId", sp.Parameters[1].Name);
+            Assert.Equal("nvarchar", sp.Parameters[1].DbType);
+            Assert.True(sp.Parameters[1].IsOptional);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+}
+
 public class ContractDiffEngineTests
 {
     [Fact]
