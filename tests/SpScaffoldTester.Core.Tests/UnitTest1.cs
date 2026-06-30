@@ -230,6 +230,42 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithCommentedSpExecuteSql_ShouldIgnoreCommentForAmbiguityDetection()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+            AS
+            BEGIN
+                -- sp_executesql N'SELECT 1'
+                SELECT CAST(1 AS INT) AS id;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.False(sp.IsMetadataAmbiguous);
+            Assert.Single(sp.ResultColumns);
+            Assert.Equal("id", sp.ResultColumns[0].Name);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests
