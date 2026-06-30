@@ -67,6 +67,50 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithSelectCastColumns_ShouldParseResultColumns()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+                @id INT
+            AS
+            BEGIN
+                SELECT
+                    CAST(1 AS INT) AS userId,
+                    CAST(NULL AS NVARCHAR(100)) AS nickName;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.Equal(2, sp.ResultColumns.Count);
+
+            Assert.Equal("userId", sp.ResultColumns[0].Name);
+            Assert.Equal("int", sp.ResultColumns[0].DbType);
+            Assert.False(sp.ResultColumns[0].IsNullable);
+
+            Assert.Equal("nickName", sp.ResultColumns[1].Name);
+            Assert.Equal("nvarchar", sp.ResultColumns[1].DbType);
+            Assert.True(sp.ResultColumns[1].IsNullable);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests
