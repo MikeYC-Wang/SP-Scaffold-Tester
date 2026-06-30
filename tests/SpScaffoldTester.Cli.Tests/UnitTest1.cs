@@ -264,6 +264,63 @@ public class ScanCommandRunnerTests
     }
 
     [Fact]
+    public void Run_WithUnorderedMembers_ShouldWriteSnapshotWithDeterministicMemberOrder()
+    {
+        var tempSqlFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        var tempSnapshotFile = Path.Combine(Path.GetTempPath(), $"sp-scan-snapshot-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            tempSqlFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+                @zeta INT,
+                @alpha NVARCHAR(50) = NULL
+            AS
+            BEGIN
+                SELECT
+                    CAST(NULL AS NVARCHAR(100)) AS nickName,
+                    CAST(1 AS INT) AS id;
+            END
+            """
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = ScanCommandRunner.Run(["scan", "--sql", tempSqlFile, "--out", tempSnapshotFile], output);
+
+            Assert.Equal(0, exitCode);
+            var snapshotText = File.ReadAllText(tempSnapshotFile);
+
+            var alphaParamIndex = snapshotText.IndexOf("\"name\":\"alpha\"", StringComparison.Ordinal);
+            var zetaParamIndex = snapshotText.IndexOf("\"name\":\"zeta\"", StringComparison.Ordinal);
+            var idColumnIndex = snapshotText.IndexOf("\"name\":\"id\"", StringComparison.Ordinal);
+            var nickNameColumnIndex = snapshotText.IndexOf("\"name\":\"nickName\"", StringComparison.Ordinal);
+
+            Assert.True(alphaParamIndex >= 0);
+            Assert.True(zetaParamIndex >= 0);
+            Assert.True(idColumnIndex >= 0);
+            Assert.True(nickNameColumnIndex >= 0);
+
+            Assert.True(alphaParamIndex < zetaParamIndex);
+            Assert.True(idColumnIndex < nickNameColumnIndex);
+        }
+        finally
+        {
+            if (File.Exists(tempSqlFile))
+            {
+                File.Delete(tempSqlFile);
+            }
+
+            if (File.Exists(tempSnapshotFile))
+            {
+                File.Delete(tempSnapshotFile);
+            }
+        }
+    }
+
+    [Fact]
     public void Run_WithScanAndMissingSqlPath_ShouldReturnFour()
     {
         using var output = new StringWriter();
