@@ -93,7 +93,9 @@ public sealed class SqlFileScanService : IScanService
             });
         }
 
-        return parameters;
+        return parameters
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static (IReadOnlyList<ResultColumnContract> Columns, bool IsMetadataAmbiguous) ParseResultColumns(string procedureBody)
@@ -147,7 +149,11 @@ public sealed class SqlFileScanService : IScanService
             }
         }
 
-        return (resultColumns, isMetadataAmbiguous);
+        var orderedColumns = resultColumns
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return (orderedColumns, isMetadataAmbiguous);
     }
 
     private static string NormalizeProcedureName(string rawName)

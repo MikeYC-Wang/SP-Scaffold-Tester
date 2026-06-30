@@ -95,13 +95,13 @@ public class SqlFileScanServiceTests
             var sp = Assert.Single(result.Snapshot.StoredProcedures);
             Assert.Equal(2, sp.ResultColumns.Count);
 
-            Assert.Equal("userId", sp.ResultColumns[0].Name);
-            Assert.Equal("int", sp.ResultColumns[0].DbType);
-            Assert.False(sp.ResultColumns[0].IsNullable);
+            Assert.Equal("nickName", sp.ResultColumns[0].Name);
+            Assert.Equal("nvarchar", sp.ResultColumns[0].DbType);
+            Assert.True(sp.ResultColumns[0].IsNullable);
 
-            Assert.Equal("nickName", sp.ResultColumns[1].Name);
-            Assert.Equal("nvarchar", sp.ResultColumns[1].DbType);
-            Assert.True(sp.ResultColumns[1].IsNullable);
+            Assert.Equal("userId", sp.ResultColumns[1].Name);
+            Assert.Equal("int", sp.ResultColumns[1].DbType);
+            Assert.False(sp.ResultColumns[1].IsNullable);
         }
         finally
         {
@@ -178,6 +178,49 @@ public class SqlFileScanServiceTests
             Assert.Equal(2, result.Snapshot.StoredProcedures.Count);
             Assert.Equal("dbo.usp_Alpha", result.Snapshot.StoredProcedures[0].Name);
             Assert.Equal("dbo.usp_Zeta", result.Snapshot.StoredProcedures[1].Name);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Fact]
+    public void RunScan_WithUnorderedMembers_ShouldReturnParametersAndColumnsInNameOrder()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+                @zeta INT,
+                @alpha NVARCHAR(50) = NULL
+            AS
+            BEGIN
+                SELECT
+                    CAST(NULL AS NVARCHAR(100)) AS nickName,
+                    CAST(1 AS INT) AS id;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.Equal(2, sp.Parameters.Count);
+            Assert.Equal("alpha", sp.Parameters[0].Name);
+            Assert.Equal("zeta", sp.Parameters[1].Name);
+
+            Assert.Equal(2, sp.ResultColumns.Count);
+            Assert.Equal("id", sp.ResultColumns[0].Name);
+            Assert.Equal("nickName", sp.ResultColumns[1].Name);
         }
         finally
         {
