@@ -384,6 +384,43 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithSimpleAliasedSelectWithoutSemicolon_ShouldParseResultColumns()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetOrder
+            AS
+            BEGIN
+                SELECT 1 AS id
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.False(sp.IsMetadataAmbiguous);
+            Assert.Single(sp.ResultColumns);
+            Assert.Equal("id", sp.ResultColumns[0].Name);
+            Assert.Equal("int", sp.ResultColumns[0].DbType);
+            Assert.False(sp.ResultColumns[0].IsNullable);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests

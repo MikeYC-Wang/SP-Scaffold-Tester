@@ -15,7 +15,7 @@ public sealed class SqlFileScanService : IScanService
     );
 
     private static readonly Regex SelectRegex = new(
-        @"SELECT\s+(?<columns>[\s\S]*?)(?:\bFROM\b|;)",
+        @"SELECT\s+(?<columns>[\s\S]*?)(?:\bFROM\b|;|\bEND\b)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
