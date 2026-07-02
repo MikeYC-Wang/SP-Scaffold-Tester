@@ -266,6 +266,45 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithSchemaQualifiedParameterType_ShouldParseTableValuedParameter()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetUser
+                @items [dbo].[ItemType] READONLY,
+                @tenantId INT
+            AS
+            BEGIN
+                SELECT CAST(1 AS INT) AS id;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.Equal(2, sp.Parameters.Count);
+            Assert.Equal("items", sp.Parameters[0].Name);
+            Assert.Equal("dbo.itemtype", sp.Parameters[0].DbType);
+            Assert.False(sp.Parameters[0].IsOptional);
+            Assert.Equal("tenantId", sp.Parameters[1].Name);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests

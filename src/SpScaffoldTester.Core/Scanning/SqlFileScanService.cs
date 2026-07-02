@@ -10,7 +10,7 @@ public sealed class SqlFileScanService : IScanService
     );
 
     private static readonly Regex ParameterRegex = new(
-        @"@(?<name>[A-Za-z_][\w]*)\s+(?<type>[A-Za-z_][\w]*)(?:\s*\([^\)]*\))?(?<tail>[\s\S]*)",
+        @"@(?<name>(?:\[[^\]]+\]|[A-Za-z_][\w]*))\s+(?<type>(?:\[[^\]]+\]|[A-Za-z_][\w]*)(?:\s*\.\s*(?:\[[^\]]+\]|[A-Za-z_][\w]*))*)(?:\s*\([^\)]*\))?(?<tail>[\s\S]*)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
@@ -97,8 +97,8 @@ public sealed class SqlFileScanService : IScanService
             var isOptional = match.Groups["tail"].Value.Contains('=');
             parameters.Add(new ParameterContract
             {
-                Name = match.Groups["name"].Value,
-                DbType = match.Groups["type"].Value.ToLowerInvariant(),
+                Name = RemoveBrackets(match.Groups["name"].Value),
+                DbType = NormalizeTypeName(match.Groups["type"].Value),
                 IsOptional = isOptional
             });
         }
@@ -189,5 +189,15 @@ public sealed class SqlFileScanService : IScanService
         }
 
         return value;
+    }
+
+    private static string NormalizeTypeName(string rawType)
+    {
+        var parts = rawType.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var normalizedParts = parts
+            .Select(RemoveBrackets)
+            .Select(x => x.ToLowerInvariant());
+
+        return string.Join('.', normalizedParts);
     }
 }
