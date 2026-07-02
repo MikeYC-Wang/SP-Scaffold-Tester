@@ -20,7 +20,7 @@ public sealed class SqlFileScanService : IScanService
     );
 
     private static readonly Regex CastColumnRegex = new(
-        @"^CAST\s*\(\s*(?<expr>NULL|.*?)\s+AS\s+(?<type>(?:\[[^\]]+\]|[A-Za-z_][\w]*)(?:\s*\([^\)]*\))?)\s*\)\s+AS\s+(?<alias>(?:\[[^\]]+\]|[A-Za-z_][\w]*))$",
+        @"^CAST\s*\(\s*(?<expr>NULL|.*?)\s+AS\s+(?<type>(?:\[[^\]]+\]|[A-Za-z_][\w]*)(?:\s*\.\s*(?:\[[^\]]+\]|[A-Za-z_][\w]*))*(?:\s*\([^\)]*\))?)\s*\)\s+AS\s+(?<alias>(?:\[[^\]]+\]|[A-Za-z_][\w]*))$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
