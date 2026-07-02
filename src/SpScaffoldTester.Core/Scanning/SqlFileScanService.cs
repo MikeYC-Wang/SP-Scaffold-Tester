@@ -49,6 +49,11 @@ public sealed class SqlFileScanService : IScanService
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
+    private static readonly Regex LeadingDistinctRegex = new(
+        @"^DISTINCT\s+",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
     private static readonly Regex BlockCommentRegex = new(
         @"/\*[\s\S]*?\*/",
         RegexOptions.Compiled
@@ -149,7 +154,7 @@ public sealed class SqlFileScanService : IScanService
             return ([], false);
         }
 
-        var columnsText = RemoveLeadingTopClause(selectMatch.Groups["columns"].Value);
+        var columnsText = RemoveLeadingSelectQualifiers(selectMatch.Groups["columns"].Value);
         var columnSegments = SplitTopLevelByComma(columnsText);
 
         var resultColumns = new List<ResultColumnContract>();
@@ -298,9 +303,29 @@ public sealed class SqlFileScanService : IScanService
         return false;
     }
 
-    private static string RemoveLeadingTopClause(string columnsText)
+    private static string RemoveLeadingSelectQualifiers(string columnsText)
     {
-        return LeadingTopClauseRegex.Replace(columnsText.TrimStart(), string.Empty);
+        var remaining = columnsText.TrimStart();
+        while (true)
+        {
+            var withoutDistinct = LeadingDistinctRegex.Replace(remaining, string.Empty);
+            if (!string.Equals(withoutDistinct, remaining, StringComparison.Ordinal))
+            {
+                remaining = withoutDistinct.TrimStart();
+                continue;
+            }
+
+            var withoutTop = LeadingTopClauseRegex.Replace(remaining, string.Empty);
+            if (!string.Equals(withoutTop, remaining, StringComparison.Ordinal))
+            {
+                remaining = withoutTop.TrimStart();
+                continue;
+            }
+
+            break;
+        }
+
+        return remaining;
     }
 
     private static IReadOnlyList<string> SplitTopLevelByComma(string text)
