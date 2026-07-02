@@ -676,6 +676,50 @@ public class ScanCommandRunnerTests
     }
 
     [Fact]
+    public void Run_WithCreateProcAbbreviation_ShouldParseAndWriteSnapshotFile()
+    {
+        var tempSqlFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        var tempSnapshotFile = Path.Combine(Path.GetTempPath(), $"sp-scan-snapshot-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            tempSqlFile,
+            """
+            CREATE PROC dbo.usp_GetUser
+                @id INT
+            AS
+            BEGIN
+                SELECT CAST(1 AS INT) AS id;
+            END
+            """
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = ScanCommandRunner.Run(["scan", "--sql", tempSqlFile, "--out", tempSnapshotFile], output);
+
+            Assert.Equal(0, exitCode);
+            var snapshotText = File.ReadAllText(tempSnapshotFile);
+            Assert.Contains("\"name\":\"dbo.usp_GetUser\"", snapshotText);
+            Assert.Contains("\"isMetadataAmbiguous\":false", snapshotText);
+            Assert.Contains("\"name\":\"id\"", snapshotText);
+        }
+        finally
+        {
+            if (File.Exists(tempSqlFile))
+            {
+                File.Delete(tempSqlFile);
+            }
+
+            if (File.Exists(tempSnapshotFile))
+            {
+                File.Delete(tempSnapshotFile);
+            }
+        }
+    }
+
+    [Fact]
     public void Run_WithScanAndMissingSqlPath_ShouldReturnFour()
     {
         using var output = new StringWriter();

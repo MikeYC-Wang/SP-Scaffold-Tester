@@ -538,6 +538,44 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithCreateProcAbbreviation_ShouldParseProcedureAndParameters()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROC dbo.usp_GetUser
+                @id INT
+            AS
+            BEGIN
+                SELECT CAST(1 AS INT) AS id;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.Equal("dbo.usp_GetUser", sp.Name);
+            Assert.Single(sp.Parameters);
+            Assert.Equal("id", sp.Parameters[0].Name);
+            Assert.Equal("int", sp.Parameters[0].DbType);
+            Assert.False(sp.IsMetadataAmbiguous);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests
