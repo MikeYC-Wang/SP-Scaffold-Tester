@@ -421,6 +421,43 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithSchemaQualifiedCastType_ShouldParseResultColumns()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetOrder
+            AS
+            BEGIN
+                SELECT CAST(NULL AS [dbo].[NameType]) AS name;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.False(sp.IsMetadataAmbiguous);
+            Assert.Single(sp.ResultColumns);
+            Assert.Equal("name", sp.ResultColumns[0].Name);
+            Assert.Equal("dbo.nametype", sp.ResultColumns[0].DbType);
+            Assert.True(sp.ResultColumns[0].IsNullable);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests
