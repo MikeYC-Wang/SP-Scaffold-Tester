@@ -500,6 +500,49 @@ public class ScanCommandRunnerTests
     }
 
     [Fact]
+    public void Run_WithSimpleAliasedSelectWithoutSemicolon_ShouldWriteResultColumns()
+    {
+        var tempSqlFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        var tempSnapshotFile = Path.Combine(Path.GetTempPath(), $"sp-scan-snapshot-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            tempSqlFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetOrder
+            AS
+            BEGIN
+                SELECT 1 AS id
+            END
+            """
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = ScanCommandRunner.Run(["scan", "--sql", tempSqlFile, "--out", tempSnapshotFile], output);
+
+            Assert.Equal(0, exitCode);
+            var snapshotText = File.ReadAllText(tempSnapshotFile);
+            Assert.Contains("\"isMetadataAmbiguous\":false", snapshotText);
+            Assert.Contains("\"name\":\"id\"", snapshotText);
+            Assert.Contains("\"dbType\":\"int\"", snapshotText);
+        }
+        finally
+        {
+            if (File.Exists(tempSqlFile))
+            {
+                File.Delete(tempSqlFile);
+            }
+
+            if (File.Exists(tempSnapshotFile))
+            {
+                File.Delete(tempSnapshotFile);
+            }
+        }
+    }
+
+    [Fact]
     public void Run_WithScanAndMissingSqlPath_ShouldReturnFour()
     {
         using var output = new StringWriter();
