@@ -5,7 +5,7 @@ namespace SpScaffoldTester.Core.Scanning;
 public sealed class SqlFileScanService : IScanService
 {
     private static readonly Regex ProcedureRegex = new(
-        @"CREATE\s+(?:OR\s+ALTER\s+)?PROCEDURE\s+(?<name>(?:\[[^\]]+\]|[A-Za-z_][\w]*)(?:\s*\.\s*(?:\[[^\]]+\]|[A-Za-z_][\w]*))?)\s*(?<params>[\s\S]*?)\bAS\b(?<body>[\s\S]*?)(?=^\s*CREATE\s+(?:OR\s+ALTER\s+)?PROCEDURE\b|\z)",
+        @"CREATE\s+(?:OR\s+ALTER\s+)?PROC(?:EDURE)?\b\s+(?<name>(?:\[[^\]]+\]|[A-Za-z_][\w]*)(?:\s*\.\s*(?:\[[^\]]+\]|[A-Za-z_][\w]*))?)\s*(?<params>[\s\S]*?)\bAS\b(?<body>[\s\S]*?)(?=^\s*CREATE\s+(?:OR\s+ALTER\s+)?PROC(?:EDURE)?\b|\z)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.Multiline
     );
 
