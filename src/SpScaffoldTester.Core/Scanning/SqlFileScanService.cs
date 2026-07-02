@@ -20,7 +20,27 @@ public sealed class SqlFileScanService : IScanService
     );
 
     private static readonly Regex CastColumnRegex = new(
-        @"CAST\s*\(\s*(?<expr>NULL|[^\)]*?)\s+AS\s+(?<type>[A-Za-z_][\w]*)(?:\s*\([^\)]*\))?\s*\)\s+AS\s+(?<alias>[A-Za-z_][\w]*)",
+        @"^CAST\s*\(\s*(?<expr>NULL|.*?)\s+AS\s+(?<type>(?:\[[^\]]+\]|[A-Za-z_][\w]*)(?:\s*\([^\)]*\))?)\s*\)\s+AS\s+(?<alias>(?:\[[^\]]+\]|[A-Za-z_][\w]*))$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    private static readonly Regex AliasedColumnRegex = new(
+        @"^(?<expr>.+?)\s+AS\s+(?<alias>(?:\[[^\]]+\]|[A-Za-z_][\w]*))$",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
+    private static readonly Regex IntLiteralRegex = new(
+        @"^[-+]?\d+$",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex DecimalLiteralRegex = new(
+        @"^[-+]?\d+\.\d+$",
+        RegexOptions.Compiled
+    );
+
+    private static readonly Regex StringLiteralRegex = new(
+        @"^N?'([^']|'')*'$",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
@@ -84,7 +104,8 @@ public sealed class SqlFileScanService : IScanService
     private static IReadOnlyList<ParameterContract> ParseParameters(string parameterBlock)
     {
         var parameters = new List<ParameterContract>();
-        var segments = parameterBlock.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var cleanedBlock = RemoveSqlComments(parameterBlock);
+        var segments = SplitTopLevelByComma(cleanedBlock);
 
         foreach (var segment in segments)
         {
@@ -124,42 +145,28 @@ public sealed class SqlFileScanService : IScanService
         }
 
         var columnsText = selectMatch.Groups["columns"].Value;
+        var columnSegments = SplitTopLevelByComma(columnsText);
+
         var resultColumns = new List<ResultColumnContract>();
-        var matches = CastColumnRegex.Matches(columnsText);
-        foreach (Match columnMatch in matches)
+        var unresolvedSegments = false;
+        foreach (var segment in columnSegments)
         {
-            var expression = columnMatch.Groups["expr"].Value.Trim();
-            resultColumns.Add(new ResultColumnContract
+            if (TryParseCastColumn(segment, out var castColumn))
             {
-                Name = columnMatch.Groups["alias"].Value,
-                DbType = columnMatch.Groups["type"].Value.ToLowerInvariant(),
-                IsNullable = expression.Equals("NULL", StringComparison.OrdinalIgnoreCase)
-            });
-        }
-
-        var isMetadataAmbiguous = resultColumns.Count == 0;
-        if (!isMetadataAmbiguous)
-        {
-            var remaining = columnsText;
-            foreach (Match match in matches)
-            {
-                if (match.Success)
-                {
-                    remaining = remaining.Replace(match.Value, string.Empty, StringComparison.OrdinalIgnoreCase);
-                }
+                resultColumns.Add(castColumn);
+                continue;
             }
 
-            var residue = remaining.Replace(",", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("\r", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("\n", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Replace("\t", string.Empty, StringComparison.OrdinalIgnoreCase)
-                .Trim();
-
-            if (!string.IsNullOrWhiteSpace(residue))
+            if (TryParseAliasedColumn(segment, out var aliasedColumn))
             {
-                isMetadataAmbiguous = true;
+                resultColumns.Add(aliasedColumn);
+                continue;
             }
+
+            unresolvedSegments = true;
         }
+
+        var isMetadataAmbiguous = unresolvedSegments || resultColumns.Count == 0;
 
         var orderedColumns = resultColumns
             .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
@@ -193,11 +200,166 @@ public sealed class SqlFileScanService : IScanService
 
     private static string NormalizeTypeName(string rawType)
     {
-        var parts = rawType.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var withoutPrecision = rawType.Split('(', 2)[0];
+
+        var parts = withoutPrecision.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var normalizedParts = parts
             .Select(RemoveBrackets)
             .Select(x => x.ToLowerInvariant());
 
         return string.Join('.', normalizedParts);
+    }
+
+    private static bool TryParseCastColumn(string segment, out ResultColumnContract column)
+    {
+        var match = CastColumnRegex.Match(segment);
+        if (!match.Success)
+        {
+            column = default!;
+            return false;
+        }
+
+        var expression = match.Groups["expr"].Value.Trim();
+        column = new ResultColumnContract
+        {
+            Name = RemoveBrackets(match.Groups["alias"].Value),
+            DbType = NormalizeTypeName(match.Groups["type"].Value),
+            IsNullable = expression.Equals("NULL", StringComparison.OrdinalIgnoreCase)
+        };
+
+        return true;
+    }
+
+    private static bool TryParseAliasedColumn(string segment, out ResultColumnContract column)
+    {
+        var match = AliasedColumnRegex.Match(segment);
+        if (!match.Success)
+        {
+            column = default!;
+            return false;
+        }
+
+        var expression = match.Groups["expr"].Value.Trim();
+        var alias = RemoveBrackets(match.Groups["alias"].Value);
+
+        if (!TryInferLiteralExpressionType(expression, out var dbType, out var isNullable))
+        {
+            column = default!;
+            return false;
+        }
+
+        column = new ResultColumnContract
+        {
+            Name = alias,
+            DbType = dbType,
+            IsNullable = isNullable
+        };
+
+        return true;
+    }
+
+    private static bool TryInferLiteralExpressionType(string expression, out string dbType, out bool isNullable)
+    {
+        if (expression.Equals("NULL", StringComparison.OrdinalIgnoreCase))
+        {
+            dbType = "unknown";
+            isNullable = true;
+            return true;
+        }
+
+        if (IntLiteralRegex.IsMatch(expression))
+        {
+            dbType = "int";
+            isNullable = false;
+            return true;
+        }
+
+        if (DecimalLiteralRegex.IsMatch(expression))
+        {
+            dbType = "decimal";
+            isNullable = false;
+            return true;
+        }
+
+        if (StringLiteralRegex.IsMatch(expression))
+        {
+            dbType = "nvarchar";
+            isNullable = false;
+            return true;
+        }
+
+        dbType = string.Empty;
+        isNullable = false;
+        return false;
+    }
+
+    private static IReadOnlyList<string> SplitTopLevelByComma(string text)
+    {
+        var segments = new List<string>();
+        var current = new System.Text.StringBuilder();
+        var parenDepth = 0;
+        var bracketDepth = 0;
+        var inString = false;
+
+        for (var i = 0; i < text.Length; i++)
+        {
+            var ch = text[i];
+
+            if (ch == '\'')
+            {
+                current.Append(ch);
+
+                if (inString && i + 1 < text.Length && text[i + 1] == '\'')
+                {
+                    current.Append(text[i + 1]);
+                    i++;
+                    continue;
+                }
+
+                inString = !inString;
+                continue;
+            }
+
+            if (!inString)
+            {
+                if (ch == '[')
+                {
+                    bracketDepth++;
+                }
+                else if (ch == ']' && bracketDepth > 0)
+                {
+                    bracketDepth--;
+                }
+                else if (ch == '(')
+                {
+                    parenDepth++;
+                }
+                else if (ch == ')' && parenDepth > 0)
+                {
+                    parenDepth--;
+                }
+                else if (ch == ',' && parenDepth == 0 && bracketDepth == 0)
+                {
+                    var segment = current.ToString().Trim();
+                    if (!string.IsNullOrWhiteSpace(segment))
+                    {
+                        segments.Add(segment);
+                    }
+
+                    current.Clear();
+                    continue;
+                }
+            }
+
+            current.Append(ch);
+        }
+
+        var lastSegment = current.ToString().Trim();
+        if (!string.IsNullOrWhiteSpace(lastSegment))
+        {
+            segments.Add(lastSegment);
+        }
+
+        return segments;
     }
 }

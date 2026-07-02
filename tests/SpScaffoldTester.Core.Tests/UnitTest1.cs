@@ -305,6 +305,85 @@ public class SqlFileScanServiceTests
             }
         }
     }
+
+    [Fact]
+    public void RunScan_WithDecimalPrecisionParameter_ShouldParseAllParameters()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetOrder
+                @amount DECIMAL(18,2),
+                @tenantId INT
+            AS
+            BEGIN
+                SELECT CAST(1 AS INT) AS id;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.Equal(2, sp.Parameters.Count);
+            Assert.Equal("amount", sp.Parameters[0].Name);
+            Assert.Equal("decimal", sp.Parameters[0].DbType);
+            Assert.Equal("tenantId", sp.Parameters[1].Name);
+            Assert.Equal("int", sp.Parameters[1].DbType);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
+
+    [Fact]
+    public void RunScan_WithSimpleAliasedSelectColumns_ShouldParseResultColumns()
+    {
+        var tempFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        File.WriteAllText(
+            tempFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetOrder
+            AS
+            BEGIN
+                SELECT 1 AS id, NULL AS nickName;
+            END
+            """
+        );
+
+        try
+        {
+            var service = new SqlFileScanService(tempFile);
+
+            var result = service.RunScan();
+
+            var sp = Assert.Single(result.Snapshot.StoredProcedures);
+            Assert.False(sp.IsMetadataAmbiguous);
+            Assert.Equal(2, sp.ResultColumns.Count);
+            Assert.Equal("id", sp.ResultColumns[0].Name);
+            Assert.Equal("int", sp.ResultColumns[0].DbType);
+            Assert.False(sp.ResultColumns[0].IsNullable);
+            Assert.Equal("nickName", sp.ResultColumns[1].Name);
+            Assert.Equal("unknown", sp.ResultColumns[1].DbType);
+            Assert.True(sp.ResultColumns[1].IsNullable);
+        }
+        finally
+        {
+            if (File.Exists(tempFile))
+            {
+                File.Delete(tempFile);
+            }
+        }
+    }
 }
 
 public class ContractDiffEngineTests
