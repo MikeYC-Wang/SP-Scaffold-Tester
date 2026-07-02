@@ -45,7 +45,7 @@ public sealed class SqlFileScanService : IScanService
     );
 
     private static readonly Regex LeadingTopClauseRegex = new(
-        @"^TOP\s*(?:\(\s*(?:\d+|@(?:\[[^\]]+\]|[A-Za-z_][\w]*))\s*\)|(?:\d+|@(?:\[[^\]]+\]|[A-Za-z_][\w]*)))\s+",
+        @"^TOP\s*(?:\(\s*(?:\d+|@(?:\[[^\]]+\]|[A-Za-z_][\w]*))\s*\)|(?:\d+|@(?:\[[^\]]+\]|[A-Za-z_][\w]*)))\s+(?:PERCENT\s+)?",
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
