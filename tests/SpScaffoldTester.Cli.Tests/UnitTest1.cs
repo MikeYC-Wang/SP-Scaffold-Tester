@@ -586,6 +586,51 @@ public class ScanCommandRunnerTests
     }
 
     [Fact]
+    public void Run_WithTopClauseAndSimpleAliasedColumns_ShouldWriteResultColumns()
+    {
+        var tempSqlFile = Path.Combine(Path.GetTempPath(), $"sp-scan-sql-{Guid.NewGuid():N}.sql");
+        var tempSnapshotFile = Path.Combine(Path.GetTempPath(), $"sp-scan-snapshot-{Guid.NewGuid():N}.json");
+
+        File.WriteAllText(
+            tempSqlFile,
+            """
+            CREATE PROCEDURE dbo.usp_GetOrder
+            AS
+            BEGIN
+                SELECT TOP 1 1 AS id, NULL AS nickName;
+            END
+            """
+        );
+
+        using var output = new StringWriter();
+
+        try
+        {
+            var exitCode = ScanCommandRunner.Run(["scan", "--sql", tempSqlFile, "--out", tempSnapshotFile], output);
+
+            Assert.Equal(0, exitCode);
+            var snapshotText = File.ReadAllText(tempSnapshotFile);
+            Assert.Contains("\"isMetadataAmbiguous\":false", snapshotText);
+            Assert.Contains("\"name\":\"id\"", snapshotText);
+            Assert.Contains("\"dbType\":\"int\"", snapshotText);
+            Assert.Contains("\"name\":\"nickName\"", snapshotText);
+            Assert.Contains("\"dbType\":\"unknown\"", snapshotText);
+        }
+        finally
+        {
+            if (File.Exists(tempSqlFile))
+            {
+                File.Delete(tempSqlFile);
+            }
+
+            if (File.Exists(tempSnapshotFile))
+            {
+                File.Delete(tempSnapshotFile);
+            }
+        }
+    }
+
+    [Fact]
     public void Run_WithScanAndMissingSqlPath_ShouldReturnFour()
     {
         using var output = new StringWriter();
