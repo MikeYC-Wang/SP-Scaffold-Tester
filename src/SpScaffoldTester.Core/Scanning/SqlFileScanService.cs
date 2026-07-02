@@ -44,6 +44,11 @@ public sealed class SqlFileScanService : IScanService
         RegexOptions.IgnoreCase | RegexOptions.Compiled
     );
 
+    private static readonly Regex LeadingTopClauseRegex = new(
+        @"^TOP\s*(?:\(\s*\d+\s*\)|\d+)\s+",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled
+    );
+
     private static readonly Regex BlockCommentRegex = new(
         @"/\*[\s\S]*?\*/",
         RegexOptions.Compiled
@@ -144,7 +149,7 @@ public sealed class SqlFileScanService : IScanService
             return ([], false);
         }
 
-        var columnsText = selectMatch.Groups["columns"].Value;
+        var columnsText = RemoveLeadingTopClause(selectMatch.Groups["columns"].Value);
         var columnSegments = SplitTopLevelByComma(columnsText);
 
         var resultColumns = new List<ResultColumnContract>();
@@ -291,6 +296,11 @@ public sealed class SqlFileScanService : IScanService
         dbType = string.Empty;
         isNullable = false;
         return false;
+    }
+
+    private static string RemoveLeadingTopClause(string columnsText)
+    {
+        return LeadingTopClauseRegex.Replace(columnsText.TrimStart(), string.Empty);
     }
 
     private static IReadOnlyList<string> SplitTopLevelByComma(string text)
